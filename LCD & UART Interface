@@ -1,0 +1,106 @@
+#include <reg51.h>
+
+// LCD Pins
+sbit D7 = P2^7;
+sbit D6 = P2^6;
+sbit D5 = P2^5;
+sbit D4 = P2^4;
+sbit rs = P2^0; // Register select pin
+sbit en = P2^1; // Enable pin
+
+void delay(unsigned int count) {
+    int i, j;
+    for (i = 0; i < count; i++)
+        for (j = 0; j < 112; j++);
+}
+
+// UART Initialization
+void UART_Init(void) {
+    TMOD = 0x20; // Timer 1 in mode 2, 8-bit auto-reload
+    TH1 = 0xFD;  // Baud rate of 9600 for 11.0592 MHz crystal frequency
+    SCON = 0x50; // Serial mode 1, 8-bit data, 1 stop bit, REN enabled
+    TR1 = 1;     // Start Timer 1
+}
+
+// UART Transmit a character
+void UART_TxChar(char ch) {
+    SBUF = ch;       // Load the character into the serial buffer
+    while (!TI);     // Wait until transmission is complete
+    TI = 0;          // Clear the transmit interrupt flag
+}
+
+void LCD_Command(char cmnd) {
+    // Send upper nibble
+    D7 = (cmnd & 0x80) >> 7;
+    D6 = (cmnd & 0x40) >> 6;
+    D5 = (cmnd & 0x20) >> 5;
+    D4 = (cmnd & 0x10) >> 4;
+    rs = 0; // Command reg.
+    en = 1;
+    delay(1);
+    en = 0;
+    delay(2);
+
+    // Send lower nibble
+    D7 = (cmnd & 0x08) >> 3;
+    D6 = (cmnd & 0x04) >> 2;
+    D5 = (cmnd & 0x02) >> 1;
+    D4 = cmnd & 0x01;
+    en = 1; // Enable pulse
+    delay(1);
+    en = 0;
+    delay(5);
+}
+
+void LCD_Char(char char_data) {
+    // Send upper nibble
+    D7 = (char_data & 0x80) >> 7;
+    D6 = (char_data & 0x40) >> 6;
+    D5 = (char_data & 0x20) >> 5;
+    D4 = (char_data & 0x10) >> 4;
+    rs = 1; // Data reg.
+    en = 1;
+    delay(1);
+    en = 0;
+    delay(2);
+
+    // Send lower nibble
+    D7 = (char_data & 0x08) >> 3;
+    D6 = (char_data & 0x04) >> 2;
+    D5 = (char_data & 0x02) >> 1;
+    D4 = char_data & 0x01;
+    en = 1; // Enable pulse
+    delay(1);
+    en = 0;
+    delay(5);
+}
+
+// Send string to LCD and UART
+void Send_String(char *str) {
+    int i;
+    for (i = 0; str[i] != 0; i++) {
+        LCD_Char(str[i]);    // Display character on LCD
+        UART_TxChar(str[i]); // Send character via UART
+    }
+}
+
+void LCD_Init(void) {
+    delay(20); // LCD Power ON Initialization time >15ms
+    LCD_Command(0x02); // 4-bit mode
+    LCD_Command(0x28); // Initialization of 16X2 LCD in 4-bit mode
+    LCD_Command(0x0C); // Display ON Cursor OFF
+    LCD_Command(0x06); // Auto Increment cursor
+    LCD_Command(0x01); // Clear display
+    LCD_Command(0x80); // Cursor at home position
+}
+
+void main() {
+    char inputString[] = "Hello, UART & LCD"; // Define your input string here
+    UART_Init(); // Initialize UART
+    LCD_Init();  // Initialize LCD
+    Send_String(inputString); // Send string to both LCD and UART
+
+    while (1) {
+        // Infinite loop to keep the program running
+    }
+}
